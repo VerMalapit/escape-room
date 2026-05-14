@@ -651,73 +651,66 @@ function ParityGauntletPuzzle({ room, onSolve }) {
   const TOTAL = 5;
   const TIME_LIMIT = 5;
 
-  const [streak, setStreak] = useState(0);
+  const [correct, setCorrect] = useState(0);
   const [q, setQ] = useState(() => generateParityQuestion());
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
-  const [feedback, setFeedback] = useState(null); // "correct"|"wrong"|"timeout"
-  const [done, setDone] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  // button layout state: swapPos, swapColor (both random per question)
+  const [feedback, setFeedback] = useState(null);
   const [swapPos, setSwapPos] = useState(false);
   const [swapColor, setSwapColor] = useState(false);
+  const [finished, setFinished] = useState(false);
   const timerRef = useRef(null);
+  const correctRef = useRef(0);
 
   const nextQuestion = () => {
-    const newQ = generateParityQuestion();
-    setQ(newQ);
+    setQ(generateParityQuestion());
     setTimeLeft(TIME_LIMIT);
     setFeedback(null);
-    // randomly decide button tricks each question
     setSwapPos(Math.random() > 0.6);
     setSwapColor(Math.random() > 0.6);
   };
 
   useEffect(() => {
-    if (feedback || done) return;
+    if (feedback || finished) return;
     timerRef.current = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
           clearInterval(timerRef.current);
           setFeedback("timeout");
-          setAttempts(a => a + 1);
-          setTimeout(() => { setStreak(0); nextQuestion(); }, 1000);
+          setTimeout(nextQuestion, 1000);
           return 0;
         }
         return t - 1;
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [q, feedback, done]);
+  }, [q, feedback, finished]);
 
   const answer = (userSaysCorrect) => {
-    if (feedback || done) return;
+    if (feedback || finished) return;
     clearInterval(timerRef.current);
     const right = userSaysCorrect === q.isCorrect;
     if (right) {
-      const newStreak = streak + 1;
-      setFeedback("correct");
-      if (newStreak >= TOTAL) {
-        setStreak(TOTAL);
-        setDone(true);
+      const newCorrect = correctRef.current + 1;
+      correctRef.current = newCorrect;
+      setCorrect(newCorrect);
+      if (newCorrect >= TOTAL) {
+        setFinished(true);
+        setFeedback("done");
         onSolve();
       } else {
-        setStreak(newStreak);
+        setFeedback("correct");
         setTimeout(nextQuestion, 700);
       }
     } else {
       setFeedback("wrong");
-      setAttempts(a => a + 1);
-      setTimeout(() => { setStreak(0); nextQuestion(); }, 900);
+      setTimeout(nextQuestion, 900);
     }
   };
 
-  // Button definitions: left=CORRECT, right=INCORRECT by default
-  // swapPos flips their positions. swapColor flips their colours.
-  // Labels are ALWAYS fixed regardless of swaps.
   const leftLabel = swapPos ? "INCORRECT" : "CORRECT";
   const rightLabel = swapPos ? "CORRECT" : "INCORRECT";
-  const leftAction = swapPos ? false : true;   // clicking left = userSaysCorrect?
-  const rightAction = swapPos ? true : false;
+  const leftAction = !swapPos;
+  const rightAction = swapPos;
 
   const correctColor = "#00ff88";
   const wrongColor = "#ff4466";
@@ -729,30 +722,25 @@ function ParityGauntletPuzzle({ room, onSolve }) {
     : (swapPos ? correctColor : wrongColor);
 
   const timerPct = (timeLeft / TIME_LIMIT) * 100;
-  const timerColor = timeLeft > 1.5 ? C.success : C.error;
+  const timerColor = timeLeft > 2 ? C.success : C.error;
 
   return (
     <div style={{ fontFamily: "Share Tech Mono" }}>
-      {/* Streak + attempts */}
+      {/* Progress */}
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 4 }}>
           {Array.from({ length: TOTAL }, (_, i) => (
             <div key={i} style={{
               width: 22, height: 8, borderRadius: 2,
-              background: i < streak ? C.success : C.border,
-              boxShadow: i < streak ? `0 0 6px ${C.success}` : "none",
+              background: i < correct ? C.success : C.border,
+              boxShadow: i < correct ? `0 0 6px ${C.success}` : "none",
               transition: "all 0.3s",
             }} />
           ))}
           <span style={{ color: C.textDim, fontSize: 11, marginLeft: 8, alignSelf: "center" }}>
-            {streak}/{TOTAL} streak
+            {correct}/{TOTAL} correct
           </span>
         </div>
-        {attempts > 0 && (
-          <span style={{ color: "#2a3a6a", fontSize: 11 }}>
-            Resets: {attempts}
-          </span>
-        )}
       </div>
 
       {/* Timer bar */}
@@ -772,7 +760,7 @@ function ParityGauntletPuzzle({ room, onSolve }) {
         borderRadius: 6, padding: "10px 16px", marginBottom: 14,
         display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>
-        <span style={{ color: C.textDim, fontSize: 11 }}>PARITY RULE:</span>
+        <span style={{ color: C.textDim, fontSize: 11 }}>PARITY RULE THIS ROUND:</span>
         <span style={{
           color: q.parity === "EVEN" ? C.accent : "#ffcc00",
           fontFamily: "Orbitron", fontSize: 14, fontWeight: 700, letterSpacing: 2,
@@ -780,10 +768,7 @@ function ParityGauntletPuzzle({ room, onSolve }) {
       </div>
 
       {/* Bit display */}
-      <div style={{
-        display: "flex", gap: 4, justifyContent: "center",
-        marginBottom: 6,
-      }}>
+      <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 6 }}>
         {q.bits.map((bit, i) => (
           <div key={i} style={{
             width: 36, height: 40,
@@ -794,10 +779,7 @@ function ParityGauntletPuzzle({ room, onSolve }) {
             color: bit === 1 ? C.success : "#2a4a6a",
           }}>{bit}</div>
         ))}
-        <div style={{
-          width: 4, alignSelf: "stretch", background: C.border,
-          borderRadius: 2, margin: "0 4px",
-        }} />
+        <div style={{ width: 4, alignSelf: "stretch", background: C.border, borderRadius: 2, margin: "0 4px" }} />
         <div style={{
           width: 36, height: 40,
           display: "flex", alignItems: "center", justifyContent: "center",
@@ -807,40 +789,33 @@ function ParityGauntletPuzzle({ room, onSolve }) {
           color: q.parityBit === 1 ? "#cc88ff" : "#2a4a6a",
         }}>{q.parityBit}</div>
       </div>
-      <div style={{
-        display: "flex", gap: 4, justifyContent: "center",
-        marginBottom: 20,
-      }}>
+      <div style={{ display: "flex", gap: 4, justifyContent: "center", marginBottom: 20 }}>
         {q.bits.map((_, i) => (
-          <div key={i} style={{ width: 36, textAlign: "center", color: "#1a3a5a", fontSize: 9 }}>
-            DATA
-          </div>
+          <div key={i} style={{ width: 36, textAlign: "center", color: "#1a3a5a", fontSize: 9 }}>DATA</div>
         ))}
         <div style={{ width: 4, margin: "0 4px" }} />
         <div style={{ width: 36, textAlign: "center", color: "#3a1a5a", fontSize: 9 }}>P</div>
       </div>
 
       {/* Buttons */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <button onClick={() => answer(leftAction)} style={{
-          padding: "16px", borderRadius: 6, cursor: "pointer",
-          background: leftColor + "22",
-          border: `2px solid ${leftColor}`,
-          color: leftColor,
-          fontFamily: "Orbitron", fontWeight: 700, fontSize: 14,
-          letterSpacing: 2, transition: "all 0.15s",
-          boxShadow: `0 0 12px ${leftColor}33`,
-        }}>{leftLabel}</button>
-        <button onClick={() => answer(rightAction)} style={{
-          padding: "16px", borderRadius: 6, cursor: "pointer",
-          background: rightColor + "22",
-          border: `2px solid ${rightColor}`,
-          color: rightColor,
-          fontFamily: "Orbitron", fontWeight: 700, fontSize: 14,
-          letterSpacing: 2, transition: "all 0.15s",
-          boxShadow: `0 0 12px ${rightColor}33`,
-        }}>{rightLabel}</button>
-      </div>
+      {!finished && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <button onClick={() => answer(leftAction)} style={{
+            padding: "16px", borderRadius: 6, cursor: "pointer",
+            background: leftColor + "22", border: `2px solid ${leftColor}`,
+            color: leftColor, fontFamily: "Orbitron", fontWeight: 700,
+            fontSize: 14, letterSpacing: 2, transition: "all 0.15s",
+            boxShadow: `0 0 12px ${leftColor}33`,
+          }}>{leftLabel}</button>
+          <button onClick={() => answer(rightAction)} style={{
+            padding: "16px", borderRadius: 6, cursor: "pointer",
+            background: rightColor + "22", border: `2px solid ${rightColor}`,
+            color: rightColor, fontFamily: "Orbitron", fontWeight: 700,
+            fontSize: 14, letterSpacing: 2, transition: "all 0.15s",
+            boxShadow: `0 0 12px ${rightColor}33`,
+          }}>{rightLabel}</button>
+        </div>
+      )}
 
       {feedback === "correct" && (
         <div className="fade-up" style={{
@@ -854,19 +829,22 @@ function ParityGauntletPuzzle({ room, onSolve }) {
           marginTop: 12, padding: "10px 14px",
           background: "#ff446611", border: `1px solid ${C.error}`,
           borderRadius: 4, color: C.error, fontSize: 13,
-        }}>✗ Wrong — streak reset.</div>
+        }}>✗ Wrong — next question.</div>
       )}
       {feedback === "timeout" && (
         <div style={{
           marginTop: 12, padding: "10px 14px",
           background: "#ff446611", border: `1px solid ${C.error}`,
           borderRadius: 4, color: C.error, fontSize: 13,
-        }}>⏱ Too slow — streak reset.</div>
+        }}>⏱ Too slow — next question.</div>
       )}
-      {done && <SuccessBanner msg={room.successMsg} />}
+      {feedback === "done" && (
+        <SuccessBanner msg={room.successMsg} />
+      )}
     </div>
   );
 }
+
 
 // ─── PUZZLE: type_debug ───────────────────────────────────
 function TypeDebugPuzzle({ room, onSolve }) {
