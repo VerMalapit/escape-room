@@ -917,6 +917,148 @@ function LogicPuzzle({ room, onSolve }) {
   );
 }
 
+// ─── PUZZLE: type_debug ───────────────────────────────────
+function TypeDebugPuzzle({ room, onSolve }) {
+  const [selected, setSelected] = useState(null);
+  const [typed, setTyped] = useState("");
+  const [phase, setPhase] = useState("select");
+  const [result, setResult] = useState(null);
+  const [shake, setShake] = useState(false);
+  const inputRef = useRef(null);
+
+  const nonClickable = ["{", "}", "else"];
+
+  const pickLine = (id) => {
+    if (nonClickable.includes(room.code.find(l => l.id === id)?.text.trim())) return;
+    setSelected(id);
+    setPhase("type");
+    setTyped("");
+    setResult(null);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  const checkTyped = () => {
+    if (selected !== room.bugLine) {
+      setResult("wrong_line");
+      setShake(true);
+      setTimeout(() => { setShake(false); setResult(null); setPhase("select"); setSelected(null); }, 1200);
+      return;
+    }
+    const normalize = s => s.trim().replace(/\s+/g, " ");
+    const bugLine = room.code.find(l => l.id === room.bugLine);
+    if (normalize(typed) === normalize(bugLine.text)) {
+      setResult("correct");
+      setTimeout(onSolve, 1000);
+    } else {
+      setResult("wrong_type");
+      setShake(true);
+      setTimeout(() => { setShake(false); setResult(null); }, 800);
+    }
+  };
+
+  return (
+    <div style={{ fontFamily: "Share Tech Mono" }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <div style={{
+          flex: 1, padding: "10px 14px",
+          background: "#050b15", border: `1px solid ${C.border}`, borderRadius: 4,
+        }}>
+          <div style={{ color: C.textDim, fontSize: 10, letterSpacing: 3, marginBottom: 4 }}>EXPECTED</div>
+          <div style={{ color: C.success, fontSize: 13 }}>Access Granted</div>
+        </div>
+        <div style={{
+          flex: 1, padding: "10px 14px",
+          background: "#150505", border: `1px solid ${C.error}44`, borderRadius: 4,
+        }}>
+          <div style={{ color: "#6a2a2a", fontSize: 10, letterSpacing: 3, marginBottom: 4 }}>ACTUAL</div>
+          <div style={{ color: C.error, fontSize: 13 }}>Access Denied</div>
+        </div>
+      </div>
+
+      <p style={{ color: C.textDim, fontSize: 12, marginBottom: 10 }}>
+        {phase === "select"
+          ? "Step 1: Click the line containing the bug."
+          : "Step 2: Type the corrected version of that line."}
+      </p>
+
+      <div style={{
+        background: "#050b15", border: `1px solid ${C.border}`,
+        borderRadius: 6, overflow: "hidden", marginBottom: 14,
+      }}>
+        {room.code.map(line => {
+          const isSel = selected === line.id;
+          const isNC = nonClickable.includes(line.text.trim());
+          return (
+            <div key={line.id}
+              onClick={() => phase === "select" && !isNC && pickLine(line.id)}
+              style={{
+                display: "flex", gap: 0,
+                cursor: phase === "select" && !isNC ? "pointer" : "default",
+                background: isSel ? "#0a1828" : "transparent",
+                borderLeft: `3px solid ${isSel ? C.accent : "transparent"}`,
+                transition: "all 0.15s",
+              }}>
+              <div style={{
+                padding: "7px 14px", minWidth: 40, textAlign: "right",
+                color: "#1a3a5a", fontSize: 12, userSelect: "none",
+                borderRight: `1px solid ${C.border}`, background: "#040810",
+              }}>{line.line}</div>
+              <div style={{
+                padding: "7px 16px", flex: 1,
+                color: isSel ? C.accent : isNC ? "#2a4a6a" : C.text,
+                fontSize: 13, lineHeight: 1.6,
+              }}>{line.text}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {phase === "type" && (
+        <div>
+          <p style={{ color: C.textDim, fontSize: 11, marginBottom: 8 }}>
+            Type the corrected version of line {room.code.find(l => l.id === selected)?.line}:
+          </p>
+          <div style={{ display: "flex", gap: 10 }} className={shake ? "shake" : ""}>
+            <input ref={inputRef} value={typed}
+              onChange={e => setTyped(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && checkTyped()}
+              placeholder="Type the corrected line..."
+              style={{
+                flex: 1, padding: "11px 14px", background: "#070d1a",
+                border: `1px solid ${result === "correct" ? C.success : result?.startsWith("wrong") ? C.error : C.border}`,
+                color: C.accent, borderRadius: 4,
+                fontFamily: "Share Tech Mono", fontSize: 13, outline: "none",
+              }} />
+            <button onClick={checkTyped} style={{
+              padding: "11px 20px", background: "#0a1828",
+              border: `1px solid ${C.accent}`, color: C.accent,
+              borderRadius: 4, cursor: "pointer",
+              fontFamily: "Share Tech Mono", fontSize: 13, fontWeight: "bold",
+            }}>CHECK</button>
+          </div>
+          <button onClick={() => { setPhase("select"); setSelected(null); setResult(null); }}
+            style={{
+              marginTop: 8, background: "none", border: "none",
+              color: C.textDim, cursor: "pointer",
+              fontFamily: "Share Tech Mono", fontSize: 11,
+            }}>← Pick a different line</button>
+        </div>
+      )}
+
+      {result === "wrong_line" && <ErrorBanner msg="That line is not the bug. Pick again." />}
+      {result === "wrong_type" && <ErrorBanner msg="Not quite. Check your operators carefully." />}
+      {result === "correct" && (
+        <div className="fade-up" style={{
+          marginTop: 14, padding: "12px 16px",
+          background: "#00ff8811", border: `1px solid ${C.success}`,
+          borderRadius: 4, color: C.success,
+          fontSize: 13, lineHeight: 1.7,
+        }}>✓ {room.errorExplanation}</div>
+      )}
+    </div>
+  );
+}
+
 // ─── ROOM WRAPPER ─────────────────────────────────────────
 function Room({ room, onComplete, roomNum, total, elapsed }) {
 
