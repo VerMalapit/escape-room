@@ -863,7 +863,7 @@ function LogicPuzzle({ room, onSolve }) {
   const g3 = !vals.C;
   const all = g1 && g2 && g3;
 
-  useEffect(() => { if (all) setTimeout(onSolve, 800); }, [all]);
+  useEffect(() => { if (all) onSolve(); }, [all]);
 
   const Led = ({ on }) => (
     <span style={{
@@ -919,25 +919,19 @@ function LogicPuzzle({ room, onSolve }) {
 
 // ─── ROOM WRAPPER ─────────────────────────────────────────
 function Room({ room, onComplete, roomNum, total, elapsed }) {
-  const [solved, setSolved] = useState(false);
-
-  const handleSolve = () => {
-    setSolved(true);
-    setTimeout(onComplete, 1200);
-  };
 
   const renderPuzzle = () => {
     switch (room.type) {
-      case "detective":     return <DetectivePuzzle room={room} onSolve={handleSolve} />;
-      case "gauntlet":      return <GauntletPuzzle room={room} onSolve={handleSolve} />;
-      case "imposter":      return <ImposterPuzzle room={room} onSolve={handleSolve} />;
-      case "fde_chase":     return <FDEChasePuzzle room={room} onSolve={handleSolve} />;
-      case "binary_decode": return <BinaryDecodePuzzle room={room} onSolve={handleSolve} />;
+      case "detective":     return <DetectivePuzzle room={room} onSolve={onComplete} />;
+      case "gauntlet":      return <GauntletPuzzle room={room} onSolve={onComplete} />;
+      case "imposter":      return <ImposterPuzzle room={room} onSolve={onComplete} />;
+      case "fde_chase":     return <FDEChasePuzzle room={room} onSolve={onComplete} />;
+      case "binary_decode": return <BinaryDecodePuzzle room={room} onSolve={onComplete} />;
       case "parity_gauntlet": return <ParityGauntletPuzzle room={room} onSolve={onComplete} />;
       case "parity":        return <ParityGauntletPuzzle room={room} onSolve={onComplete} />;
-      case "logic":         return <LogicPuzzle room={room} onSolve={handleSolve} />;
-      case "type_debug":    return <TypeDebugPuzzle room={room} onSolve={handleSolve} />;
-      case "debug":         return <TypeDebugPuzzle room={room} onSolve={handleSolve} />;
+      case "logic":         return <LogicPuzzle room={room} onSolve={onComplete} />;
+      case "type_debug":    return <TypeDebugPuzzle room={room} onSolve={onComplete} />;
+      case "debug":         return <TypeDebugPuzzle room={room} onSolve={onComplete} />;
       default: return null;
     }
   };
@@ -988,12 +982,7 @@ function Room({ room, onComplete, roomNum, total, elapsed }) {
         {/* Puzzle area */}
         <div style={{ padding: "24px 28px", background: C.panel }}>
           {renderPuzzle()}
-          {solved && room.type !== "detective" && room.type !== "imposter"
-            && room.type !== "fde_chase" && room.type !== "binary_decode"
-            && room.type !== "parity" && room.type !== "parity_gauntlet"
-            && room.type !== "type_debug" && room.type !== "debug"
-            && room.type !== "gauntlet"
-            && <SuccessBanner msg={room.successMsg} />}
+
           <HintToggle hint={room.hint} />
         </div>
       </div>
