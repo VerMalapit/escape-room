@@ -649,7 +649,7 @@ function generateParityQuestion() {
 
 function ParityGauntletPuzzle({ room, onSolve }) {
   const TOTAL = 5;
-  const TIME_LIMIT = 3;
+  const TIME_LIMIT = 5;
 
   const [streak, setStreak] = useState(0);
   const [q, setQ] = useState(() => generateParityQuestion());
@@ -680,7 +680,7 @@ function ParityGauntletPuzzle({ room, onSolve }) {
           clearInterval(timerRef.current);
           setFeedback("timeout");
           setAttempts(a => a + 1);
-          setTimeout(() => { setStreak(0); nextQuestion(); }, 900);
+          setTimeout(() => { setStreak(0); nextQuestion(); }, 1000);
           return 0;
         }
         return t - 1;
@@ -699,7 +699,7 @@ function ParityGauntletPuzzle({ room, onSolve }) {
       if (newStreak >= TOTAL) {
         setStreak(TOTAL);
         setDone(true);
-        setTimeout(onSolve, 1200);
+        onSolve();
       } else {
         setStreak(newStreak);
         setTimeout(nextQuestion, 700);
@@ -1035,8 +1035,8 @@ function Room({ room, onComplete, roomNum, total, elapsed }) {
       case "imposter":      return <ImposterPuzzle room={room} onSolve={handleSolve} />;
       case "fde_chase":     return <FDEChasePuzzle room={room} onSolve={handleSolve} />;
       case "binary_decode": return <BinaryDecodePuzzle room={room} onSolve={handleSolve} />;
-      case "parity_gauntlet": return <ParityGauntletPuzzle room={room} onSolve={handleSolve} />;
-      case "parity":        return <ParityGauntletPuzzle room={room} onSolve={handleSolve} />;
+      case "parity_gauntlet": return <ParityGauntletPuzzle room={room} onSolve={onComplete} />;
+      case "parity":        return <ParityGauntletPuzzle room={room} onSolve={onComplete} />;
       case "logic":         return <LogicPuzzle room={room} onSolve={handleSolve} />;
       case "type_debug":    return <TypeDebugPuzzle room={room} onSolve={handleSolve} />;
       case "debug":         return <TypeDebugPuzzle room={room} onSolve={handleSolve} />;
