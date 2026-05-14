@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ROOMS } from "./data.js";
 import BossRoom from "./BossRoom.jsx";
 
@@ -651,17 +651,22 @@ function ParityGauntletPuzzle({ room, onSolve }) {
   const TOTAL = 5;
   const TIME_LIMIT = 5;
 
-  const [correct, setCorrect] = useState(0);
+  const [streak, setStreak] = useState(0);
   const [q, setQ] = useState(() => generateParityQuestion());
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
   const [feedback, setFeedback] = useState(null);
+  const [attempts, setAttempts] = useState(0);
   const [swapPos, setSwapPos] = useState(false);
   const [swapColor, setSwapColor] = useState(false);
   const [finished, setFinished] = useState(false);
   const timerRef = useRef(null);
-  const correctRef = useRef(0);
+  const streakRef = useRef(0);
 
-  const nextQuestion = () => {
+  const nextQuestion = (resetStreak = false) => {
+    if (resetStreak) {
+      streakRef.current = 0;
+      setStreak(0);
+    }
     setQ(generateParityQuestion());
     setTimeLeft(TIME_LIMIT);
     setFeedback(null);
@@ -676,7 +681,8 @@ function ParityGauntletPuzzle({ room, onSolve }) {
         if (t <= 1) {
           clearInterval(timerRef.current);
           setFeedback("timeout");
-          setTimeout(nextQuestion, 1000);
+          setAttempts(a => a + 1);
+          setTimeout(() => nextQuestion(true), 1000);
           return 0;
         }
         return t - 1;
@@ -690,20 +696,20 @@ function ParityGauntletPuzzle({ room, onSolve }) {
     clearInterval(timerRef.current);
     const right = userSaysCorrect === q.isCorrect;
     if (right) {
-      const newCorrect = correctRef.current + 1;
-      correctRef.current = newCorrect;
-      setCorrect(newCorrect);
-      if (newCorrect >= TOTAL) {
+      const newStreak = streakRef.current + 1;
+      streakRef.current = newStreak;
+      setStreak(newStreak);
+      setFeedback("correct");
+      if (newStreak >= TOTAL) {
         setFinished(true);
-        setFeedback("done");
         onSolve();
       } else {
-        setFeedback("correct");
-        setTimeout(nextQuestion, 700);
+        setTimeout(() => nextQuestion(false), 700);
       }
     } else {
       setFeedback("wrong");
-      setTimeout(nextQuestion, 900);
+      setAttempts(a => a + 1);
+      setTimeout(() => nextQuestion(true), 900);
     }
   };
 
@@ -726,21 +732,26 @@ function ParityGauntletPuzzle({ room, onSolve }) {
 
   return (
     <div style={{ fontFamily: "Share Tech Mono" }}>
-      {/* Progress */}
+      {/* Streak dots + attempts */}
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 4 }}>
           {Array.from({ length: TOTAL }, (_, i) => (
             <div key={i} style={{
               width: 22, height: 8, borderRadius: 2,
-              background: i < correct ? C.success : C.border,
-              boxShadow: i < correct ? `0 0 6px ${C.success}` : "none",
+              background: i < streak ? C.success : C.border,
+              boxShadow: i < streak ? `0 0 6px ${C.success}` : "none",
               transition: "all 0.3s",
             }} />
           ))}
           <span style={{ color: C.textDim, fontSize: 11, marginLeft: 8, alignSelf: "center" }}>
-            {correct}/{TOTAL} correct
+            {streak}/{TOTAL} streak
           </span>
         </div>
+        {attempts > 0 && (
+          <span style={{ color: "#2a3a6a", fontSize: 11 }}>
+            Resets: {attempts}
+          </span>
+        )}
       </div>
 
       {/* Timer bar */}
@@ -817,185 +828,94 @@ function ParityGauntletPuzzle({ room, onSolve }) {
         </div>
       )}
 
-      {feedback === "correct" && (
+      {feedback === "correct" && !finished && (
         <div className="fade-up" style={{
           marginTop: 12, padding: "10px 14px",
           background: "#00ff8811", border: `1px solid ${C.success}`,
           borderRadius: 4, color: C.success, fontSize: 13,
-        }}>✓ Correct!</div>
+        }}>✓ Correct! Keep going.</div>
       )}
       {feedback === "wrong" && (
         <div style={{
           marginTop: 12, padding: "10px 14px",
           background: "#ff446611", border: `1px solid ${C.error}`,
           borderRadius: 4, color: C.error, fontSize: 13,
-        }}>✗ Wrong — next question.</div>
+        }}>✗ Wrong — streak reset.</div>
       )}
       {feedback === "timeout" && (
         <div style={{
           marginTop: 12, padding: "10px 14px",
           background: "#ff446611", border: `1px solid ${C.error}`,
           borderRadius: 4, color: C.error, fontSize: 13,
-        }}>⏱ Too slow — next question.</div>
+        }}>⏱ Too slow — streak reset.</div>
       )}
-      {feedback === "done" && (
-        <SuccessBanner msg={room.successMsg} />
-      )}
+      {finished && <SuccessBanner msg={room.successMsg} />}
     </div>
   );
 }
 
 
-// ─── PUZZLE: type_debug ───────────────────────────────────
-function TypeDebugPuzzle({ room, onSolve }) {
-  const [selected, setSelected] = useState(null);
-  const [typed, setTyped] = useState("");
-  const [phase, setPhase] = useState("select"); // select | type
-  const [result, setResult] = useState(null);
-  const [shake, setShake] = useState(false);
-  const inputRef = useRef(null);
+// ─── PUZZLE: logic ────────────────────────────────────────
+function LogicPuzzle({ room, onSolve }) {
+  const [vals, setVals] = useState({ A: false, B: false, C: false });
+  const g1 = vals.A && vals.B;
+  const g2 = vals.B || vals.C;
+  const g3 = !vals.C;
+  const all = g1 && g2 && g3;
 
-  const nonClickable = ["{", "}", "else"];
+  useEffect(() => { if (all) setTimeout(onSolve, 800); }, [all]);
 
-  const pickLine = (id) => {
-    if (nonClickable.includes(room.code.find(l => l.id === id)?.text.trim())) return;
-    setSelected(id);
-    setPhase("type");
-    setTyped("");
-    setResult(null);
-    setTimeout(() => inputRef.current?.focus(), 100);
-  };
-
-  const checkTyped = () => {
-    const bugLine = room.code.find(l => l.id === room.bugLine);
-    if (selected !== room.bugLine) {
-      setResult("wrong_line");
-      setShake(true);
-      setTimeout(() => { setShake(false); setResult(null); setPhase("select"); setSelected(null); }, 1200);
-      return;
-    }
-    // Normalize: trim and collapse multiple spaces
-    const normalize = s => s.trim().replace(/\s+/g, " ");
-    if (normalize(typed) === normalize(bugLine.text)) {
-      setResult("correct");
-      setTimeout(onSolve, 1400);
-    } else {
-      setResult("wrong_type");
-      setShake(true);
-      setTimeout(() => { setShake(false); setResult(null); }, 800);
-    }
-  };
+  const Led = ({ on }) => (
+    <span style={{
+      display: "inline-block", width: 12, height: 12, borderRadius: "50%",
+      background: on ? C.success : "#0a1020",
+      boxShadow: on ? `0 0 8px ${C.success}` : "none",
+      border: `1px solid ${on ? C.success : C.border}`,
+      verticalAlign: "middle", marginRight: 6,
+      transition: "all 0.2s",
+    }} />
+  );
 
   return (
     <div style={{ fontFamily: "Share Tech Mono" }}>
-      {/* Expected vs actual */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-        <div style={{
-          flex: 1, padding: "10px 14px",
-          background: "#050b15", border: `1px solid ${C.border}`,
-          borderRadius: 4,
-        }}>
-          <div style={{ color: C.textDim, fontSize: 10, letterSpacing: 3, marginBottom: 4 }}>EXPECTED</div>
-          <div style={{ color: C.success, fontSize: 13 }}>Access Granted</div>
-        </div>
-        <div style={{
-          flex: 1, padding: "10px 14px",
-          background: "#150505", border: `1px solid ${C.error}44`,
-          borderRadius: 4,
-        }}>
-          <div style={{ color: "#6a2a2a", fontSize: 10, letterSpacing: 3, marginBottom: 4 }}>ACTUAL</div>
-          <div style={{ color: C.error, fontSize: 13 }}>Access Denied</div>
-        </div>
-      </div>
-
-      <p style={{ color: C.textDim, fontSize: 12, marginBottom: 10 }}>
-        {phase === "select"
-          ? "Step 1: Click the line containing the bug."
-          : "Step 2: Type that line exactly as it should be corrected."}
+      <p style={{ color: C.textDim, fontSize: 12, marginBottom: 16 }}>
+        Toggle inputs A, B, C. Make ALL three gate outputs TRUE.
       </p>
-
-      {/* Code block */}
-      <div style={{
-        background: "#050b15", border: `1px solid ${C.border}`,
-        borderRadius: 6, overflow: "hidden", marginBottom: 14,
-      }}>
-        {room.code.map(line => {
-          const isSel = selected === line.id;
-          const isBug = line.id === room.bugLine;
-          const isNC = nonClickable.includes(line.text.trim());
-          return (
-            <div key={line.id}
-              onClick={() => phase === "select" && !isNC && pickLine(line.id)}
-              style={{
-                display: "flex", gap: 0,
-                cursor: phase === "select" && !isNC ? "pointer" : "default",
-                background: isSel ? "#0a1828" : "transparent",
-                borderLeft: `3px solid ${isSel ? C.accent : "transparent"}`,
-                transition: "all 0.15s",
-              }}>
-              <div style={{
-                padding: "7px 14px", minWidth: 40, textAlign: "right",
-                color: "#1a3a5a", fontSize: 12, userSelect: "none",
-                borderRight: `1px solid ${C.border}`,
-                background: "#040810",
-              }}>{line.line}</div>
-              <div style={{
-                padding: "7px 16px", flex: 1,
-                color: isSel ? C.accent : isNC ? "#2a4a6a" : C.text,
-                fontSize: 13, lineHeight: 1.6,
-              }}>{line.text}</div>
-            </div>
-          );
-        })}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        {["A", "B", "C"].map(k => (
+          <button key={k} onClick={() => setVals(v => ({ ...v, [k]: !v[k] }))} style={{
+            padding: "10px 24px", borderRadius: 4,
+            background: vals[k] ? "#00ff8818" : "#070d1a",
+            border: `1px solid ${vals[k] ? C.success : C.border}`,
+            color: vals[k] ? C.success : C.textDim,
+            cursor: "pointer", fontFamily: "Share Tech Mono",
+            fontSize: 15, fontWeight: "bold", transition: "all 0.2s",
+          }}>{k}: {vals[k] ? "TRUE" : "FALSE"}</button>
+        ))}
       </div>
-
-      {/* Type input */}
-      {phase === "type" && (
-        <div>
-          <p style={{ color: C.textDim, fontSize: 11, marginBottom: 8 }}>
-            Type the corrected version of line {room.code.find(l => l.id === selected)?.line}:
-          </p>
-          <div style={{ display: "flex", gap: 10 }} className={shake ? "shake" : ""}>
-            <input ref={inputRef} value={typed}
-              onChange={e => setTyped(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && checkTyped()}
-              placeholder="Type the corrected line..."
-              style={{
-                flex: 1, padding: "11px 14px", background: "#070d1a",
-                border: `1px solid ${result === "correct" ? C.success : result?.startsWith("wrong") ? C.error : C.border}`,
-                color: C.accent, borderRadius: 4,
-                fontFamily: "Share Tech Mono", fontSize: 13, outline: "none",
-              }} />
-            <button onClick={checkTyped} style={{
-              padding: "11px 20px", background: "#0a1828",
-              border: `1px solid ${C.accent}`, color: C.accent,
-              borderRadius: 4, cursor: "pointer",
-              fontFamily: "Share Tech Mono", fontSize: 13, fontWeight: "bold",
-            }}>CHECK</button>
-          </div>
-          <button onClick={() => { setPhase("select"); setSelected(null); setResult(null); }}
-            style={{
-              marginTop: 8, background: "none", border: "none",
-              color: C.textDim, cursor: "pointer",
-              fontFamily: "Share Tech Mono", fontSize: 11,
-            }}>← Pick a different line</button>
+      {[
+        { lbl: "Gate 1: A AND B", out: g1 },
+        { lbl: "Gate 2: B OR C",  out: g2 },
+        { lbl: "Gate 3: NOT C",   out: g3 },
+      ].map(({ lbl, out }) => (
+        <div key={lbl} style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "10px 14px", marginBottom: 7, borderRadius: 4,
+          background: "#050b15",
+          border: `1px solid ${out ? C.success + "55" : C.border}`,
+          transition: "all 0.2s",
+        }}>
+          <Led on={out} />
+          <span style={{ color: out ? C.success : C.textDim, fontSize: 13 }}>{lbl}</span>
+          <span style={{ marginLeft: "auto", color: out ? C.success : C.error, fontSize: 12 }}>
+            {out ? "TRUE ✓" : "FALSE"}
+          </span>
         </div>
-      )}
-
-      {result === "wrong_line" && <ErrorBanner msg="That line is not the bug. Pick again." />}
-      {result === "wrong_type" && <ErrorBanner msg="Not quite. Check your operators carefully." />}
-      {result === "correct" && (
-        <div className="fade-up" style={{
-          marginTop: 14, padding: "12px 16px",
-          background: "#00ff8811", border: `1px solid ${C.success}`,
-          borderRadius: 4, color: C.success,
-          fontSize: 13, lineHeight: 1.7,
-        }}>✓ {room.errorExplanation}</div>
-      )}
+      ))}
+      {all && <SuccessBanner msg={room.successMsg} />}
     </div>
   );
 }
-
 
 // ─── ROOM WRAPPER ─────────────────────────────────────────
 function Room({ room, onComplete, roomNum, total, elapsed }) {
@@ -1268,14 +1188,14 @@ export default function App() {
     timer.current = setInterval(() => setElapsed(e => e + 1), 1000);
   };
 
-  const next = () => {
+  const next = useCallback(() => {
     if (roomIdx + 1 >= ROOMS.length) {
       clearInterval(timer.current);
       setStage("win");
     } else {
       setRoomIdx(i => i + 1);
     }
-  };
+  }, [roomIdx]);
 
   if (stage === "name") return <NameEntry onStart={start} />;
   if (stage === "win") return <Win time={elapsed} teamName={teamName} />;
