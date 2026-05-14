@@ -944,9 +944,9 @@ function TypeDebugPuzzle({ room, onSolve }) {
       setTimeout(() => { setShake(false); setResult(null); setPhase("select"); setSelected(null); }, 1200);
       return;
     }
-    const normalize = s => s.trim().replace(/\s+/g, " ");
-    const bugLine = room.code.find(l => l.id === room.bugLine);
-    if (normalize(typed) === normalize(bugLine.text)) {
+    const normalize = s => s.trim().split(/[ \t]+/).join(" ");
+    const correct = "if (score >= passMark)";
+    if (normalize(typed) === normalize(correct)) {
       setResult("correct");
       setTimeout(onSolve, 1000);
     } else {
