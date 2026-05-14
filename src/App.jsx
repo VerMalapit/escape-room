@@ -690,17 +690,18 @@ function ParityGauntletPuzzle({ room, onSolve }) {
   }, [q, feedback, done]);
 
   const answer = (userSaysCorrect) => {
-    if (feedback) return;
+    if (feedback || done) return;
     clearInterval(timerRef.current);
     const right = userSaysCorrect === q.isCorrect;
     if (right) {
       const newStreak = streak + 1;
-      setStreak(newStreak);
       setFeedback("correct");
       if (newStreak >= TOTAL) {
+        setStreak(TOTAL);
         setDone(true);
-        setTimeout(onSolve, 1000);
+        setTimeout(onSolve, 1200);
       } else {
+        setStreak(newStreak);
         setTimeout(nextQuestion, 700);
       }
     } else {
